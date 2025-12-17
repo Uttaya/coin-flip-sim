@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Coin Flip: Risk Simulation</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e74c3c;
+            --coin-head: #f1c40f;
+            --coin-tail: #95a5a6;
+            --bg: #ecf0f1;
+        }
+
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 { text-align: center; color: var(--primary); margin-bottom: 5px; }
+        p.subtitle { text-align: center; color: #7f8c8d; margin-bottom: 20px; }
+
+        .stats-bar {
+            background: white;
+            padding: 10px 30px;
+            border-radius: 50px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: var(--primary);
+            display: flex;
+            gap: 20px;
+        }
+
+        .game-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            flex: 1;
+            min-width: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border-top: 5px solid transparent;
+            transition: background-color 0.3s;
+        }
+
+        .card.side-a { border-top-color: var(--accent); }
+        .card.side-b { border-top-color: #3498db; }
+        
+        .card.broke {
+            background-color: #ffdddd;
+            opacity: 0.8;
+        }
+
+        .balance-box {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .balance-label { font-size: 0.9rem; color: #7f8c8d; }
+
+        .coin-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 120px;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .coin {
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2), 0 3px 5px rgba(0,0,0,0.2);
+            transition: transform 0.2s; /* Faster animation */
+        }
+        
+        .coin-large {
+            width: 80px;
+            height: 80px;
+            font-size: 1.5rem;
+            background-color: #bdc3c7;
+        }
+
+        .coin-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+        }
+
+        .coin-small {
+            width: 35px;
+            height: 35px;
+            font-size: 0.7rem;
+            background-color: #bdc3c7;
+        }
+
+        .head { background-color: var(--coin-head); content: "H"; }
+        .tail { background-color: var(--coin-tail); content: "T"; }
+
+        .control-panel {
+            position: sticky;
+            bottom: 20px;
+            margin-top: 30px;
+            text-align: center;
+            z-index: 100;
+        }
+
+        button#auto-btn {
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.4rem;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s;
+            min-width: 250px;
+        }
+
+        button#auto-btn.running {
+            background-color: #c0392b; /* Change to red when running */
+            animation: pulse 1s infinite;
+        }
+
+        button#auto-btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .log {
+            font-size: 0.9rem;
+            height: 20px;
+            font-weight: bold;
+        }
+        
+        .status-msg {
+            color: var(--accent);
+            font-weight: bold;
+            margin-top: 10px;
+            height: 24px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>จำลองการโยนเหรียญ (Auto Run)</h1>
+    <p class="subtitle">วิ่งไปจนกว่าจะมีฝั่งไหนเงินหมด</p>
+
+    <div class="stats-bar">
+        <span>รอบที่: <span id="round-count">0</span></span>
+    </div>
+
+    <div class="game-container">
+        <div class="card side-a" id="card-a">
+            <h2>ฝั่ง A (เสี่ยงสูง)</h2>
+            <p>เดิมพัน 10 บาท</p>
+            <div class="balance-label">เงินคงเหลือ</div>
+            <div class="balance-box" id="balance-a">100</div>
+            
+            <div class="coin-container">
+                <div id="coin-a" class="coin coin-large">?</div>
+            </div>
+            <div class="log" id="log-a"></div>
+        </div>
+
+        <div class="card side-b" id="card-b">
+            <h2>ฝั่ง B (กระจายความเสี่ยง)</h2>
+            <p>เดิมพัน 1 บาท x 10 ครั้ง</p>
+            <div class="balance-label">เงินคงเหลือ</div>
+            <div class="balance-box" id="balance-b">100</div>
+
+            <div class="coin-container">
+                <div class="coin-grid" id="grid-b"></div>
+            </div>
+            <div class="log" id="log-b"></div>
+        </div>
+    </div>
+
+    <div class="control-panel">
+        <div id="status-display" class="status-msg"></div>
+        <button id="auto-btn" onclick="toggleAuto()">เริ่มรันอัตโนมัติ (Start)</button>
+        <div style="margin-top:10px; font-size: 0.8rem; color:#7f8c8d;">
+            <a href="#" onclick="resetGame()">รีเซ็ตเกม (Reset)</a>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        let balanceA = 100;
+        let balanceB = 100;
+        let round = 0;
+        let timer = null;
+        let isRunning = false;
+        let gameOver = false;
+
+        // Init Grid B
+        const gridB = document.getElementById('grid-b');
+        for (let i = 0; i < 10; i++) {
+            let coin = document.createElement('div');
+            coin.className = 'coin coin-small';
+            coin.id = `coin-b-${i}`;
+            coin.innerText = "?";
+            gridB.appendChild(coin);
+        }
+
+        function toggleAuto() {
+            if (gameOver) return; // Do nothing if game is over
+
+            const btn = document.getElementById('auto-btn');
+            
+            if (isRunning) {
+                // STOP
+                clearInterval(timer);
+                isRunning = false;
+                btn.innerText = "เริ่มรันต่อ (Resume)";
+                btn.classList.remove('running');
+            } else {
+                // START
+                isRunning = true;
+                btn.innerText = "หยุด (Stop)";
+                btn.classList.add('running');
+                // Run playRound every 200ms
+                timer = setInterval(playRound, 200); 
+            }
+        }
+
+        function playRound() {
+            // Check Bankruptcy Condition BEFORE playing
+            // A needs 10 to play, B needs 1 to play (but technically we run until 0)
+            if (balanceA < 10 || balanceB < 1) {
+                endGame();
+                return;
+            }
+
+            round++;
+            document.getElementById('round-count').innerText = round.toLocaleString();
+
+            // --- Logic A ---
+            const resultA = Math.random() < 0.5 ? 0 : 1; 
+            const profitA = resultA === 1 ? 10 : -10;
+            balanceA += profitA;
+            updateCoinUI(document.getElementById('coin-a'), resultA);
+            document.getElementById('balance-a').innerText = balanceA.toLocaleString();
+            updateLog('log-a', profitA);
+
+            // --- Logic B ---
+            let winsB = 0;
+            for (let i = 0; i < 10; i++) {
+                const res = Math.random() < 0.5 ? 0 : 1;
+                if (res === 1) winsB++;
+                updateCoinUI(document.getElementById(`coin-b-${i}`), res);
+            }
+            const profitB = (winsB * 1) - ((10 - winsB) * 1);
+            balanceB += profitB;
+            document.getElementById('balance-b').innerText = balanceB.toLocaleString();
+            updateLog('log-b', profitB);
+
+            // Check Bankruptcy AFTER playing (Did anyone die this round?)
+            if (balanceA < 10 || balanceB < 1) {
+                endGame();
+            }
+        }
+
+        function updateCoinUI(element, result) {
+            element.classList.remove('head', 'tail');
+            // Force browser repaint to ensure color change is seen if result repeats
+            void element.offsetWidth; 
+            
+            if (result === 1) {
+                element.classList.add('head');
+                element.innerText = "H";
+            } else {
+                element.classList.add('tail');
+                element.innerText = "T";
+            }
+        }
+
+        function updateLog(elementId, profit) {
+            const el = document.getElementById(elementId);
+            el.innerText = profit >= 0 ? `+${profit}` : `${profit}`;
+            el.style.color = profit >= 0 ? "#27ae60" : "#c0392b";
+        }
+
+        function endGame() {
+            clearInterval(timer);
+            isRunning = false;
+            gameOver = true;
+            
+            const btn = document.getElementById('auto-btn');
+            btn.innerText = "จบเกม! (กด Reset ด้านล่าง)";
+            btn.classList.remove('running');
+            btn.disabled = true;
+
+            const status = document.getElementById('status-display');
+            
+            if (balanceA < 10) {
+                document.getElementById('card-a').classList.add('broke');
+                status.innerText = "ฝั่ง A เงินหมดก่อน! (High Risk, High Ruin)";
+            } else if (balanceB < 1) {
+                document.getElementById('card-b').classList.add('broke');
+                status.innerText = "ฝั่ง B เงินหมดก่อน! (เป็นไปได้ยากมาก)";
+            }
+        }
+
+        function resetGame() {
+            clearInterval(timer);
+            isRunning = false;
+            gameOver = false;
+            
+            balanceA = 100;
+            balanceB = 100;
+            round = 0;
+
+            document.getElementById('balance-a').innerText = "100";
+            document.getElementById('balance-b').innerText = "100";
+            document.getElementById('round-count').innerText = "0";
+            document.getElementById('log-a').innerText = "";
+            document.getElementById('log-b').innerText = "";
+            document.getElementById('status-display').innerText = "";
+            
+            document.getElementById('card-a').classList.remove('broke');
+            document.getElementById('card-b').classList.remove('broke');
+
+            const btn = document.getElementById('auto-btn');
+            btn.innerText = "เริ่มรันอัตโนมัติ (Start)";
+            btn.classList.remove('running');
+            btn.disabled = false;
+        }
+    </script>
+</body>
+</html>
